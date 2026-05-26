@@ -36,6 +36,7 @@ const App = () => {
   const [isIAPopupExpanded, setIsIAPopupExpanded] = useState(false);
   const [unavailablePopup, setUnavailablePopup] = useState(null);
   const [showModelPopup, setShowModelPopup] = useState(false);
+  const [showLockedModelPopup, setShowLockedModelPopup] = useState(false);
   const [showPlusPopup, setShowPlusPopup] = useState(false);
   const [showLevelPopup, setShowLevelPopup] = useState(false);
   const [selectedModel, setSelectedModel] = useState('openai/gpt-5.5');
@@ -477,15 +478,22 @@ const deleteSession = (e, id) => {
             {showModelPopup && (
               <div className={`absolute bottom-[calc(100%+12px)] right-0 w-[180px] p-2 rounded-2xl shadow-xl border flex flex-col gap-1 overflow-y-auto max-h-[300px] ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'} z-50 transition-all duration-300`}>
                 {[
-                  { id: 'openai/gpt-5.5', name: 'GPT-5.5' },
-                  { id: 'anthropic/claude-opus-4.7', name: 'Claude Opus 4.7', locked: true },
-                  { id: 'qwen/qwen3.6-flash', name: 'Qwen 3.6 Flash' },
-                  { id: 'google/gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', locked: true },
-                  { id: 'qwen/qwen3.7-max', name: 'Qwen 3.7 Max' },
-                  { id: 'google/gemini-3.5-flash', name: 'Gemini 3.5 Flash' },
-                  { id: 'x-ai/grok-4.3', name: 'Grok 4.3' },
-                  { id: 'openai/gpt-5.5-pro', name: 'GPT-5.5 Pro', locked: true },
                   { id: 'fictitious/agent-ng', name: 'Agent NG', locked: true },
+                  { id: 'zhipu/glm-5.1', name: 'GLM 5.1' },
+                  { id: 'openai/gpt-5.5', name: 'GPT-5.5' },
+                  { id: 'google/gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', locked: true },
+                  { id: 'alibaba/wan-2.7', name: 'Wan 2.7' },
+                  { id: 'qwen/qwen3.6-flash', name: 'Qwen 3.6 Flash' },
+                  { id: 'mimo/mimo-v2.5-pro', name: 'MiMo-V2.5-Pro', locked: true },
+                  { id: 'anthropic/claude-opus-4.7', name: 'Claude Opus 4.7' },
+                  { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
+                  { id: 'google/gemini-3.5-flash', name: 'Gemini 3.5 Flash' },
+                  { id: 'openai/gpt-5.5-pro', name: 'GPT-5.5 Pro', locked: true },
+                  { id: 'moonshot/kimi-k2.6', name: 'Kimi K2.6' },
+                  { id: 'x-ai/grok-4.3', name: 'Grok 4.3', locked: true },
+                  { id: 'qwen/qwen3.7-max', name: 'Qwen 3.7 Max' },
+                  { id: 'anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6' },
+                  { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro', locked: true },
                 ].map((modelOpt) => (
                   <div 
                     key={modelOpt.id}
@@ -498,6 +506,9 @@ const deleteSession = (e, id) => {
                       if (!modelOpt.locked) {
                         setSelectedModel(modelOpt.id);
                         setShowModelPopup(false); 
+                      } else {
+                        setShowModelPopup(false);
+                        setShowLockedModelPopup(true);
                       }
                     }}
                   >
@@ -509,34 +520,62 @@ const deleteSession = (e, id) => {
                 ))}
               </div>
             )}
+            {showLockedModelPopup && (
+              <div className={`absolute bottom-[calc(100%+12px)] right-0 w-[240px] p-4 rounded-2xl shadow-xl border flex flex-col gap-3 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'} z-50 transition-all duration-300`}>
+                <p className="text-[13px] text-left font-medium opacity-90 leading-relaxed text-wrap">
+                  Deseja desbloquear o acesso a todos os modelos exclusivos? Entre em contato com a equipe de desenvolvimento para liberar seu acesso.
+                </p>
+                <a 
+                  href="https://wa.me/5587981126323" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={`block w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors ${redGlowButton}`}
+                  onClick={() => setShowLockedModelPopup(false)}
+                >
+                  Falar com Erick
+                </a>
+              </div>
+            )}
             <button 
-              onClick={() => setShowModelPopup(!showModelPopup)}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-full border ${isDarkMode ? 'border-white/20 text-white/80' : 'border-gray-300 text-gray-700'} hover:border-red-400 hover:text-red-500 transition-all cursor-pointer text-[12px] font-bold tracking-wide shadow-sm max-w-[130px]`}
+              onClick={() => {
+                setShowModelPopup(!showModelPopup);
+                if (!showModelPopup && showLockedModelPopup) setShowLockedModelPopup(false);
+              }}
+              className={`flex items-center h-[32px] gap-1 px-3 rounded-full border ${isDarkMode ? 'border-white/20 text-white/80' : 'border-gray-300 text-gray-700'} hover:border-red-400 hover:text-red-500 transition-all cursor-pointer text-[12px] font-bold tracking-wide shadow-sm max-w-[130px]`}
             >
               <span className="truncate">
                 {{
                   'openai/gpt-5.5': 'GPT-5.5',
                   'anthropic/claude-opus-4.7': 'Claude Opus 4.7',
+                  'anthropic/claude-sonnet-4.6': 'Claude Sonnet 4.6',
                   'qwen/qwen3.6-flash': 'Qwen 3.6 Flash',
                   'google/gemini-3.1-pro-preview': 'Gemini 3.1 Pro',
                   'qwen/qwen3.7-max': 'Qwen 3.7 Max',
                   'google/gemini-3.5-flash': 'Gemini 3.5 Flash',
                   'x-ai/grok-4.3': 'Grok 4.3',
                   'openai/gpt-5.5-pro': 'GPT-5.5 Pro',
-                  'fictitious/agent-ng': 'Agent NG'
+                  'fictitious/agent-ng': 'Agent NG',
+                  'zhipu/glm-5.1': 'GLM 5.1',
+                  'deepseek/deepseek-v4-pro': 'DeepSeek V4 Pro',
+                  'deepseek/deepseek-v4-flash': 'DeepSeek V4 Flash',
+                  'mimo/mimo-v2.5-pro': 'MiMo-V2.5-Pro',
+                  'moonshot/kimi-k2.6': 'Kimi K2.6',
+                  'alibaba/wan-2.7': 'Wan 2.7'
                 }[selectedModel] || 'Modelo'}
               </span>
               <ChevronDown size={14} className={`shrink-0 transition-transform duration-300 ${showModelPopup ? 'rotate-180' : ''}`} />
             </button>
           </div>
         )}
-        <button 
-          onClick={handleSend}
-          disabled={isLoading || !inputText.trim()}
-          className={`h-10 mb-[2px] px-4 shrink-0 rounded-full text-[14px] font-semibold ${!isLoading && inputText.trim() ? (isDarkMode ? 'hover:scale-105' : 'hover:scale-105') : 'opacity-70'} ${redGlowButton}`}
-        >
-          Enviar
-        </button>
+        <div className="flex items-center justify-center shrink-0 h-[44px]">
+          <button 
+            onClick={handleSend}
+            disabled={isLoading || !inputText.trim()}
+            className={`flex items-center justify-center h-[32px] px-4 rounded-full text-[14px] font-semibold ${!isLoading && inputText.trim() ? (isDarkMode ? 'hover:scale-105' : 'hover:scale-105') : 'opacity-70'} ${redGlowButton}`}
+          >
+            Enviar
+          </button>
+        </div>
       </div>
     </motion.div>
   );
@@ -662,12 +701,12 @@ const deleteSession = (e, id) => {
                     </ul>
                   </div>
                   <a 
-                    href="https://wa.me/5587981126323" 
+                    href="https://bolt.new/?adgroup=Brand-Bolt-Core&network=g&device=m&placement=&utm_source=google&utm_medium=cpc&utm_campaign=LATAM-GS-Brand-Bolt&utm_content=Register-Chat-Build-Deploy&utm_term=bolt&hsa_grp=197196418232&hsa_ad=809250884090&hsa_src=g&hsa_tgt=kwd-29603716&hsa_kw=bolt&hsa_mt=e&hsa_cam=23857154390&hsa_acc=1356040017&hsa_net=adwords&hsa_ver=3&gad_source=1&gad_campaignid=23857154390&gbraid=0AAAAA-WCawXlgy2Xn04oPi2V7WyszVD-o&gclid=CjwKCAjw5s_QBhAdEiwADD_gBu9SXlQv-uQOXAlUQHX_8wcZEZzFNcz0bbBcvN1POhrh7BygIef4pRoCC-kQAvD_BwE" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className={`block w-full py-2.5 rounded-xl text-center text-[13px] font-semibold transition-colors ${redGlowButton}`}
                   >
-                    Falar com Erick
+                    Acessar Bolt.new
                   </a>
                 </div>
               )}
