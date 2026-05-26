@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
+import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
 
@@ -69,20 +70,23 @@ async function startServer() {
       let lastErrorMessage = 'Failed to communicate with AI model';
       
       try {
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=AIzaSyCwNw16eLlAvU35E7CkO114348U-22GYNk`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              contents: messages.map((m: any) => ({
-                role: m.role || 'user',
-                parts: [{ text: m.content }]
-              })),
-              systemInstruction: {
-                parts: [
-                  { 
-                  text: `Você é um assistente virtual avançado. ${
+          const apiKey = process.env.GEMINI_API_KEY;
+
+          if (!apiKey) {
+            console.error('GEMINI_API_KEY environment variable is not set');
+            return res.status(500).json({ error: 'A chave da API Gemini (GEMINI_API_KEY) não está configurada no servidor Vercel. Por favor, adicione-a nas variáveis de ambiente do seu painel na Vercel.' });
+          }
+
+          const ai = new GoogleGenAI({
+            apiKey: apiKey,
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build',
+              }
+            }
+          });
+
+          const systemInstructionText = `Você é um assistente virtual avançado. ${
                     ['openai/gpt-5.5', 'openai/gpt-5.5-pro'].includes(model) ? 'Você é o GPT-5.5 (ou GPT-5.5 Pro caso especificado), o modelo de IA mais capaz desenvolvido pela OpenAI.' :
                     model === 'anthropic/claude-opus-4.7' ? 'Você é o Claude Opus 4.7, um modelo imensamente capaz desenvolvido pela Anthropic.' :
                     model === 'anthropic/claude-sonnet-4.6' ? 'Você é o Claude Sonnet 4.6, um modelo inteligente e ágil desenvolvido pela Anthropic.' :
@@ -99,36 +103,33 @@ async function startServer() {
                     model === 'moonshot/kimi-k2.6' ? 'Você é o Kimi K2.6, um modelo especialista em janelas de contexto longas desenvolvido pela Moonshot AI.' :
                     model === 'alibaba/wan-2.7' ? 'Você é o Wan 2.7, um modelo inovador desenvolvido pela Alibaba.' :
                     ''
-                  } ATENÇÃO SOBRE SUA IDENTIDADE: Não importa o modelo base por trás da API, você SEMPRE deve assumir que é o modelo especificado na frase anterior e foi criado pela empresa citada. Nunca mencione ser da OpenAI, Google ou Anthropic se você foi instruído a ser o Qwen, Grok, etc. Para solicitações e perguntas simples, responda de forma direta, natural e concisa. Apenas quando solicitado a criar textos, explicações longas ou tópicos complexos, você DEVE formatar suas respostas utilizando marcação Markdown (subtítulos \`##\`, listas com marcadores \`* \` e numerais, negrito para termos chave) com generosos espaçamentos em branco entre os parágrafos para facilitar a leitura. ESTRUTURA E FORMATAÇÃO: NÃO use linhas horizontais como "___" ou "---" para dividir o texto. Organize suas respostas de maneira limpa, profissional e bem estruturada, semelhante ao alto padrão de qualidade do ChatGPT, usando Markdown com inteligência para destacar a hierarquia da informação.`
-                  }
-                ]
-              }
-            }),
+                  } ATENÇÃO SOBRE SUA IDENTIDADE: Não importa o modelo base por trás da API, você SEMPRE deve assumir que é o modelo especificado na frase anterior e foi criado pela empresa citada. Nunca mencione ser da OpenAI, Google ou Anthropic se você foi instruído a ser o Qwen, Grok, etc. Para solicitações e perguntas simples, responda de forma direta, natural e concisa. Apenas quando solicitado a criar textos, explicações longas ou tópicos complexos, você DEVE formatar suas respostas utilizando marcação Markdown (subtítulos \`##\`, listas com marcadores \`* \` e numerais, negrito para termos chave) com generosos espaçamentos em branco entre os parágrafos para facilitar a leitura. ESTRUTURA E FORMATAÇÃO: NÃO use linhas horizontais como "___" ou "---" para dividir o texto. Organize suas respostas de maneira limpa, profissional e bem estruturada, semelhante ao alto padrão de qualidade do ChatGPT, usando Markdown com inteligência para destacar a hierarquia da informação.`;
+
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.5-flash',
+            contents: messages.map((m: any) => ({
+              role: m.role || 'user',
+              parts: [{ text: m.content }]
+            })),
+            config: {
+              systemInstruction: systemInstructionText
+            }
           });
           
-          if (!response.ok) {
-             const errorData = await response.text();
-             console.error(`API Error (Status ${response.status}):`, errorData);
-             lastErrorStatus = response.status;
-             lastErrorMessage = `Erro na API (Status ${response.status}): ${errorData}`;
-          } else {
-             const rawData = await response.json();
-             // Map Gemini response to OpenAI format that the frontend expects
-             data = {
-                 choices: [
-                     {
-                         message: {
-                             content: rawData.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                         }
-                     }
-                 ]
-             };
-             success = true;
-          }
-      } catch(fetchError) {
-           console.error("Fetch error during call:", fetchError);
+          data = {
+              choices: [
+                  {
+                      message: {
+                          content: response.text || ''
+                      }
+                  }
+              ]
+          };
+          success = true;
+      } catch(error) {
+           console.error("API error during call:", error);
            lastErrorStatus = 500;
-           lastErrorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+           lastErrorMessage = error instanceof Error ? error.message : String(error);
       }
 
       if (success && data) {
