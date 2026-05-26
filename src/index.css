@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@layer components {
+  .markdown-body {
+    @apply leading-[1.7] text-[16px];
+  }
+  .markdown-body p {
+    @apply mb-5;
+  }
+  .markdown-body p:last-child {
+    @apply mb-0;
+  }
+  .markdown-body strong, .markdown-body b {
+    @apply font-bold;
+  }
+  .markdown-body em, .markdown-body i {
+    @apply italic;
+  }
+  .markdown-body h1 {
+    @apply text-[24px] font-bold mb-5 mt-8 leading-tight;
+  }
+  .markdown-body h2 {
+    @apply text-[20px] font-bold mb-4 mt-7 leading-tight;
+  }
+  .markdown-body h3 {
+    @apply text-[18px] font-bold mb-4 mt-6 leading-tight;
+  }
+  .markdown-body ul {
+    @apply list-disc pl-6 mb-6 space-y-4;
+  }
+  .markdown-body ol {
+    @apply list-decimal pl-6 mb-6 space-y-4;
+  }
+  .markdown-body li {
+    @apply pl-1;
+  }
+  .markdown-body blockquote {
+    @apply border-l-4 border-gray-400 dark:border-gray-500 pl-4 py-1 italic mb-5 opacity-90;
+  }
+  .markdown-body code {
+    @apply bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-sm font-mono;
+  }
+  .markdown-body pre {
+    @apply bg-[#1e1e1e] text-gray-100 p-4 rounded-2xl overflow-x-auto mb-6;
+  }
+  .markdown-body pre code {
+    @apply bg-transparent p-0 text-sm font-mono;
+  }
+  .markdown-body a {
+    @apply text-blue-500 hover:text-blue-600 underline;
+  }
+}
