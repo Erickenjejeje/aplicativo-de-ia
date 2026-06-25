@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'motion/react';
@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 // --- FUNDO ANIMADO (Agora recebe a prop isDarkMode para se adaptar) ---
-const CodeBlock = ({ language, codeContent, children, className, ...props }) => {
+const CodeBlock = memo(({ language, codeContent, children, className, ...props }: any) => {
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopy = () => {
@@ -40,9 +40,9 @@ const CodeBlock = ({ language, codeContent, children, className, ...props }) => 
       </div>
     </div>
   );
-};
+});
 
-const BackgroundEffects = ({ isDarkMode }) => (
+const BackgroundEffects = memo(({ isDarkMode }: { isDarkMode: boolean }) => (
   <div className={`absolute inset-0 overflow-hidden pointer-events-none z-0 transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-[#f0f2f5]'}`}>
     <div className={`absolute top-[-10%] left-[20%] w-[60%] h-[30%] blur-[100px] rounded-full transition-colors duration-500 ${isDarkMode ? 'bg-white/5' : 'bg-white/80'}`}></div>
     <div className={`absolute top-[20%] left-[-20%] w-[140%] h-[2px] blur-[2px] rotate-[15deg] transition-colors duration-500 ${isDarkMode ? 'bg-red-600/30 shadow-[0_0_30px_10px_rgba(220,38,38,0.4)]' : 'bg-red-400/40 shadow-[0_0_30px_10px_rgba(220,38,38,0.2)]'}`}></div>
@@ -50,7 +50,76 @@ const BackgroundEffects = ({ isDarkMode }) => (
     <div className={`absolute bottom-[10%] right-[-10%] w-[80%] h-[3px] blur-[4px] rotate-[45deg] transition-colors duration-500 ${isDarkMode ? 'bg-red-600/20 shadow-[0_0_50px_20px_rgba(220,38,38,0.5)]' : 'bg-red-500/30 shadow-[0_0_50px_20px_rgba(220,38,38,0.3)]'}`}></div>
     <div className={`absolute top-[40%] left-[30%] w-[40%] h-[40%] blur-[120px] rounded-full transition-colors duration-500 ${isDarkMode ? 'bg-red-900/20 mix-blend-screen' : 'bg-red-400/20 mix-blend-multiply'}`}></div>
   </div>
-);
+));
+
+const ChatMessage = memo(({ msg, isDarkMode, setCopiedMessageId, copiedMessageId, setMessageFeedback, messageFeedback }: any) => {
+  return (
+    <div className={`flex w-full ${msg.role === 'user' ? 'justify-end pl-2 sm:pl-4' : 'justify-start pr-2 sm:pr-4'}`}>
+      {msg.role === 'model' ? (
+         <div className={`flex-1 min-w-0 pr-0 group flex flex-col`}>
+            <div className={`w-full ${isDarkMode ? 'text-white/90' : 'text-gray-800'} text-[16px] leading-relaxed markdown-body`}>
+              <Markdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code({ node, inline, className, children, ...props }: any) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    if (!inline && match) {
+                      return (
+                        <CodeBlock
+                          language={match[1]}
+                          codeContent={String(children).replace(/\n$/, '')}
+                          className={className}
+                          {...props}
+                        >
+                          {children}
+                        </CodeBlock>
+                      );
+                    }
+                    return <code className={className} {...props}>{children}</code>;
+                  },
+                  pre({ children }: any) {
+                    return <div className="not-prose my-6">{children}</div>;
+                  }
+                }}
+              >
+                {msg.text}
+              </Markdown>
+           </div>
+           
+           <div className="flex items-center gap-1 mt-1 -ml-1.5 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+             <button 
+               onClick={() => {
+                 navigator.clipboard.writeText(msg.text);
+                 setCopiedMessageId(msg.id);
+                 setTimeout(() => setCopiedMessageId(null), 2000);
+               }} 
+               className={`p-1.5 rounded-md transition-colors cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white/70 hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+               title="Copiar"
+             >
+               {copiedMessageId === msg.id ? <Check size={14} /> : <Copy size={14} />}
+             </button>
+             <button 
+               onClick={() => setMessageFeedback((prev: any) => ({ ...prev, [msg.id]: prev[msg.id] === 'up' ? null : 'up' }))}
+               className={`p-1.5 rounded-md transition-colors cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white/70 hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} title="Resposta boa"
+             >
+               <ThumbsUp size={14} className={messageFeedback[msg.id] === 'up' ? (isDarkMode ? 'fill-white text-white' : 'fill-gray-600 text-gray-600') : ''} />
+             </button>
+             <button 
+               onClick={() => setMessageFeedback((prev: any) => ({ ...prev, [msg.id]: prev[msg.id] === 'down' ? null : 'down' }))}
+               className={`p-1.5 rounded-md transition-colors cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white/70 hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} title="Resposta ruim"
+             >
+               <ThumbsDown size={14} className={messageFeedback[msg.id] === 'down' ? (isDarkMode ? 'fill-white text-white' : 'fill-gray-600 text-gray-600') : ''} />
+             </button>
+           </div>
+         </div>
+      ) : (
+        <div className={`px-5 py-3.5 rounded-3xl rounded-tr-sm text-[16px] leading-relaxed shadow-lg whitespace-pre-wrap break-words break-all border max-w-full ${isDarkMode ? 'bg-gradient-to-br from-red-900/60 to-red-800/40 border-red-500/30 text-white/95' : 'bg-gradient-to-br from-red-100 to-red-50 border-red-200 text-gray-900'}`}>
+          {msg.text}
+        </div>
+      )}
+    </div>
+  );
+});
 
 const App = () => {
   const [currentView, setCurrentView] = useState('chat');
@@ -453,73 +522,15 @@ const deleteSession = (e, id) => {
       <div ref={messagesContainerRef} className={`flex-1 w-full rounded-[32px] p-3 sm:p-4 flex flex-col gap-6 overflow-y-auto mb-6 custom-scrollbar z-10 relative ${glassPanel}`}>
         
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex w-full ${msg.role === 'user' ? 'justify-end pl-2 sm:pl-4' : 'justify-start pr-2 sm:pr-4'}`}>
-            
-            {msg.role === 'model' ? (
-               <div className={`flex-1 min-w-0 pr-0 group flex flex-col`}>
-                  <div className={`w-full ${isDarkMode ? 'text-white/90' : 'text-gray-800'} text-[16px] leading-relaxed markdown-body`}>
-                    <Markdown 
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        code({ node, inline, className, children, ...props }: any) {
-                          const match = /language-(\w+)/.exec(className || '');
-                          if (!inline && match) {
-                            return (
-                              <CodeBlock
-                                language={match[1]}
-                                codeContent={String(children).replace(/\n$/, '')}
-                                className={className}
-                                {...props}
-                              >
-                                {children}
-                              </CodeBlock>
-                            );
-                          }
-                          return <code className={className} {...props}>{children}</code>;
-                        },
-                        pre({ children }) {
-                          // Se o filho for o nosso CodeBlock, não envelopamos em pre extra
-                          return <div className="not-prose my-6">{children}</div>;
-                        }
-                      }}
-                    >
-                      {msg.text}
-                    </Markdown>
-                 </div>
-                 
-                 <div className="flex items-center gap-1 mt-1 -ml-1.5 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                   <button 
-                     onClick={() => {
-                       navigator.clipboard.writeText(msg.text);
-                       setCopiedMessageId(msg.id);
-                       setTimeout(() => setCopiedMessageId(null), 2000);
-                     }} 
-                     className={`p-1.5 rounded-md transition-colors cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white/70 hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
-                     title="Copiar"
-                   >
-                     {copiedMessageId === msg.id ? <Check size={14} /> : <Copy size={14} />}
-                   </button>
-                   <button 
-                     onClick={() => setMessageFeedback(prev => ({ ...prev, [msg.id]: prev[msg.id] === 'up' ? null : 'up' }))}
-                     className={`p-1.5 rounded-md transition-colors cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white/70 hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} title="Resposta boa"
-                   >
-                     <ThumbsUp size={14} className={messageFeedback[msg.id] === 'up' ? (isDarkMode ? 'fill-white text-white' : 'fill-gray-600 text-gray-600') : ''} />
-                   </button>
-                   <button 
-                     onClick={() => setMessageFeedback(prev => ({ ...prev, [msg.id]: prev[msg.id] === 'down' ? null : 'down' }))}
-                     className={`p-1.5 rounded-md transition-colors cursor-pointer ${isDarkMode ? 'text-white/40 hover:text-white/70 hover:bg-white/10' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} title="Resposta ruim"
-                   >
-                     <ThumbsDown size={14} className={messageFeedback[msg.id] === 'down' ? (isDarkMode ? 'fill-white text-white' : 'fill-gray-600 text-gray-600') : ''} />
-                   </button>
-                 </div>
-               </div>
-            ) : (
-              <div className={`px-5 py-3.5 rounded-3xl rounded-tr-sm text-[16px] leading-relaxed shadow-lg whitespace-pre-wrap break-words break-all border max-w-full ${isDarkMode ? 'bg-gradient-to-br from-red-900/60 to-red-800/40 border-red-500/30 text-white/95' : 'bg-gradient-to-br from-red-100 to-red-50 border-red-200 text-gray-900'}`}>
-                {msg.text}
-              </div>
-            )}
-
-          </div>
+          <ChatMessage 
+            key={msg.id} 
+            msg={msg} 
+            isDarkMode={isDarkMode} 
+            setCopiedMessageId={setCopiedMessageId} 
+            copiedMessageId={copiedMessageId} 
+            setMessageFeedback={setMessageFeedback} 
+            messageFeedback={messageFeedback} 
+          />
         ))}
 
         {/* Indicador de "Digitando..." */}
@@ -1113,154 +1124,154 @@ const deleteSession = (e, id) => {
         <h1 className={`${textMain} text-[20px] font-bold tracking-wide drop-shadow-md truncate px-12`}>Configurações</h1>
       </div>
 
-      <div className={`w-full rounded-[28px] flex flex-col p-5 ${glassPanel} mt-2`}>
-        <div className="mb-4">
-          <div className="flex justify-between items-center mb-3 px-2">
-            <h2 className={`${textSub} font-semibold text-[13px] uppercase tracking-wider drop-shadow-sm`}>Informações Pessoais</h2>
+      <div className={`w-full rounded-[32px] flex flex-col p-6 ${glassPanel} mt-2`}>
+        <div className="mb-5">
+          <div className="flex justify-between items-center mb-4 px-2">
+            <h2 className={`${textSub} font-semibold text-[14px] uppercase tracking-wider drop-shadow-sm`}>Informações Pessoais</h2>
           </div>
           
           <div className="relative">
             {unavailablePopup === 'perfil' && (
-              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[12px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
                 Ainda não disponível
               </div>
             )}
-            <div onClick={() => { setUnavailablePopup('perfil'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-2 cursor-not-allowed opacity-40 transition-opacity">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
-                  <User size={20} />
+            <div onClick={() => { setUnavailablePopup('perfil'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-3 cursor-not-allowed opacity-40 transition-opacity">
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
+                  <User size={24} />
                 </div>
-                <span className={`${textSec} text-[15px] font-bold drop-shadow-sm truncate`}>Configurações de Perfil</span>
+                <span className={`${textSec} text-[16px] font-bold drop-shadow-sm truncate`}>Configurações de Perfil</span>
               </div>
-              <ChevronRight size={18} className={`${textSub} shrink-0`} />
+              <ChevronRight size={20} className={`${textSub} shrink-0`} />
             </div>
           </div>
 
-          <div className={`h-[1px] w-full my-0.5 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
+          <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
           
           <div className="relative">
             {unavailablePopup === 'dados' && (
-              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[12px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
                 Ainda não disponível
               </div>
             )}
-            <div onClick={() => { setUnavailablePopup('dados'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-2 cursor-not-allowed opacity-40 transition-opacity">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
-                  <Shield size={20} />
+            <div onClick={() => { setUnavailablePopup('dados'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-3 cursor-not-allowed opacity-40 transition-opacity">
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
+                  <Shield size={24} />
                 </div>
-                <span className={`${textSec} text-[15px] font-bold drop-shadow-sm truncate`}>Controle de Dados</span>
+                <span className={`${textSec} text-[16px] font-bold drop-shadow-sm truncate`}>Controle de Dados</span>
               </div>
-              <ChevronRight size={18} className={`${textSub} shrink-0`} />
+              <ChevronRight size={20} className={`${textSub} shrink-0`} />
             </div>
           </div>
 
-          <div className={`h-[1px] w-full my-0.5 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
+          <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
 
           <div className="relative">
             {unavailablePopup === 'personalizacao' && (
-              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[12px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
                 Ainda não disponível
               </div>
             )}
-            <div onClick={() => { setUnavailablePopup('personalizacao'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-2 cursor-not-allowed opacity-40 transition-opacity">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
-                  <Palette size={20} />
+            <div onClick={() => { setUnavailablePopup('personalizacao'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-3 cursor-not-allowed opacity-40 transition-opacity">
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
+                  <Palette size={24} />
                 </div>
-                <span className={`${textSec} text-[15px] font-bold drop-shadow-sm truncate`}>Personalização do aplicativo</span>
+                <span className={`${textSec} text-[16px] font-bold drop-shadow-sm truncate`}>Personalização do aplicativo</span>
               </div>
-              <ChevronRight size={18} className={`${textSub} shrink-0`} />
+              <ChevronRight size={20} className={`${textSub} shrink-0`} />
             </div>
           </div>
 
-          <div className={`h-[1px] w-full my-0.5 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
+          <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
 
           <div className="relative">
             {unavailablePopup === 'memorias' && (
-              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[12px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
                 Ainda não disponível
               </div>
             )}
-            <div onClick={() => { setUnavailablePopup('memorias'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-2 cursor-not-allowed opacity-40 transition-opacity">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
-                  <Brain size={20} />
+            <div onClick={() => { setUnavailablePopup('memorias'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-3 cursor-not-allowed opacity-40 transition-opacity">
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
+                  <Brain size={24} />
                 </div>
-                <span className={`${textSec} text-[15px] font-bold drop-shadow-sm truncate`}>Memórias</span>
+                <span className={`${textSec} text-[16px] font-bold drop-shadow-sm truncate`}>Memórias</span>
               </div>
-              <ChevronRight size={18} className={`${textSub} shrink-0`} />
+              <ChevronRight size={20} className={`${textSub} shrink-0`} />
             </div>
           </div>
 
-          <div className={`h-[1px] w-full my-0.5 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
+          <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
 
           <div className="relative">
             {unavailablePopup === 'voz' && (
-              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[12px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
                 Ainda não disponível
               </div>
             )}
-            <div onClick={() => { setUnavailablePopup('voz'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-2 cursor-not-allowed opacity-40 transition-opacity">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
-                  <Mic size={20} />
+            <div onClick={() => { setUnavailablePopup('voz'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-3 cursor-not-allowed opacity-40 transition-opacity">
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
+                  <Mic size={24} />
                 </div>
-                <span className={`${textSec} text-[15px] font-bold drop-shadow-sm truncate`}>Voz do aplicativo</span>
+                <span className={`${textSec} text-[16px] font-bold drop-shadow-sm truncate`}>Voz do aplicativo</span>
               </div>
-              <ChevronRight size={18} className={`${textSub} shrink-0`} />
+              <ChevronRight size={20} className={`${textSub} shrink-0`} />
             </div>
           </div>
 
-          <div className={`h-[1px] w-full my-0.5 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
+          <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
 
           <div className="relative">
             {unavailablePopup === 'controle_pais' && (
-              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[12px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
                 Ainda não disponível
               </div>
             )}
-            <div onClick={() => { setUnavailablePopup('controle_pais'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-2 cursor-not-allowed opacity-40 transition-opacity">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
-                  <Baby size={20} />
+            <div onClick={() => { setUnavailablePopup('controle_pais'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-3 cursor-not-allowed opacity-40 transition-opacity">
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
+                  <Baby size={24} />
                 </div>
-                <span className={`${textSec} text-[15px] font-bold drop-shadow-sm truncate`}>Controle dos pais</span>
+                <span className={`${textSec} text-[16px] font-bold drop-shadow-sm truncate`}>Controle dos pais</span>
               </div>
-              <ChevronRight size={18} className={`${textSub} shrink-0`} />
+              <ChevronRight size={20} className={`${textSub} shrink-0`} />
             </div>
           </div>
 
-          <div className={`h-[1px] w-full my-0.5 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
+          <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
 
           <div className="relative">
             {unavailablePopup === 'assinar' && (
-              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[12px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
                 Ainda não disponível
               </div>
             )}
-            <div onClick={() => { setUnavailablePopup('assinar'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-2 cursor-not-allowed opacity-40 transition-opacity">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
-                  <CreditCard size={20} />
+            <div onClick={() => { setUnavailablePopup('assinar'); setTimeout(() => setUnavailablePopup(null), 2500); }} className="flex items-center justify-between py-3 cursor-not-allowed opacity-40 transition-opacity">
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
+                  <CreditCard size={24} />
                 </div>
-                <span className={`${textSec} text-[15px] font-bold drop-shadow-sm truncate`}>Assinar a plataforma</span>
+                <span className={`${textSec} text-[16px] font-bold drop-shadow-sm truncate`}>Assinar a plataforma</span>
               </div>
-              <ChevronRight size={18} className={`${textSub} shrink-0`} />
+              <ChevronRight size={20} className={`${textSub} shrink-0`} />
             </div>
           </div>
           
-          <div className={`h-[1px] w-full my-0.5 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
+          <div className={`h-[1px] w-full my-1 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
           
           <div className="relative flex flex-col">
-            <div onClick={() => handleTogglePopup('sensitive')} className="flex items-center justify-between py-2 cursor-pointer transition-opacity hover:opacity-80">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white/80' : 'text-gray-600'}`}>
-                  <AlertTriangle size={20} />
+            <div onClick={() => handleTogglePopup('sensitive')} className="flex items-center justify-between py-3 cursor-pointer transition-opacity hover:opacity-80">
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white/80' : 'text-gray-600'}`}>
+                  <AlertTriangle size={24} />
                 </div>
-                <span className={`${textSec} text-[15px] font-bold drop-shadow-sm truncate`}>Dados Sensíveis</span>
+                <span className={`${textSec} text-[16px] font-bold drop-shadow-sm truncate`}>Dados Sensíveis</span>
               </div>
-              <ChevronRight size={18} className={`${textSub} shrink-0 transition-transform duration-200 ${showSensitiveData ? 'rotate-90' : ''}`} />
+              <ChevronRight size={20} className={`${textSub} shrink-0 transition-transform duration-200 ${showSensitiveData ? 'rotate-90' : ''}`} />
             </div>
             
             <AnimatePresence>
@@ -1271,7 +1282,7 @@ const deleteSession = (e, id) => {
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden"
                 >
-                  <button onClick={clearAllHistory} className={`w-full py-2 rounded-xl font-medium text-[13px] mt-2 mb-2 shrink-0 transition-all duration-200 flex justify-center items-center gap-2 ${
+                  <button onClick={clearAllHistory} className={`w-full py-3 rounded-xl font-medium text-[15px] mt-3 mb-2 shrink-0 transition-all duration-200 flex justify-center items-center gap-2 ${
                     isDarkMode 
                       ? 'bg-white/10 hover:bg-white/15 text-white border border-white/5'
                       : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200'
@@ -1285,27 +1296,27 @@ const deleteSession = (e, id) => {
 
         </div>
 
-        <div className={`h-[1px] w-full mb-4 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
+        <div className={`h-[1px] w-full mb-5 mt-2 ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}></div>
 
-        <div className="mb-2">
+        <div className="mb-4">
           <div className="relative">
             {unavailablePopup === 'notificacoes' && (
-              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-lg text-[12px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+              <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-2 rounded-lg text-[13px] font-medium shadow-lg border z-50 whitespace-nowrap transition-all duration-200 ${isDarkMode ? 'bg-[#1a1a1a] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
                 Ainda não disponível
               </div>
             )}
             <div 
               onClick={() => { setUnavailablePopup('notificacoes'); setTimeout(() => setUnavailablePopup(null), 2500); }}
-              className="flex items-center justify-between py-2 cursor-not-allowed opacity-40 transition-opacity"
+              className="flex items-center justify-between py-3 cursor-not-allowed opacity-40 transition-opacity"
             >
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
-                  <Bell size={20} />
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 flex items-center justify-center shrink-0 ${isDarkMode ? 'text-white' : 'text-gray-700'}`}>
+                  <Bell size={24} />
                 </div>
-                <span className={`${textSec} text-[15px] font-bold drop-shadow-sm truncate`}>Notificações</span>
+                <span className={`${textSec} text-[16px] font-bold drop-shadow-sm truncate`}>Notificações</span>
               </div>
-              <div className={`w-12 h-6 rounded-full relative flex items-center p-1 shrink-0 transition-colors duration-300 ${notificationsEnabled ? 'bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)]' : (isDarkMode ? 'bg-white/20' : 'bg-gray-300')} pointer-events-none`}>
-                <div className={`w-4 h-4 rounded-full bg-white absolute shadow-md transition-all duration-300 ${notificationsEnabled ? 'right-1' : 'left-1'}`}></div>
+              <div className={`w-14 h-7 rounded-full relative flex items-center p-1.5 shrink-0 transition-colors duration-300 ${notificationsEnabled ? 'bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)]' : (isDarkMode ? 'bg-white/20' : 'bg-gray-300')} pointer-events-none`}>
+                <div className={`w-5 h-5 rounded-full bg-white absolute shadow-md transition-all duration-300 ${notificationsEnabled ? 'right-1' : 'left-1'}`}></div>
               </div>
             </div>
           </div>
