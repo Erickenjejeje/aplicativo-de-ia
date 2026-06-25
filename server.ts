@@ -97,13 +97,23 @@ const ola = "mundo";
                     }
                   });
 
+                  const formattedMessages = messages.map((m: any, index: number) => {
+                      let text = m.content;
+                      // Inject a strong reminder to the very last user message to prevent breaking character
+                      if (index === messages.length - 1 && (m.role === 'user' || !m.role)) {
+                          let modelNameForPrompt = model.split('/').pop() || model;
+                          text += `\n\n[SYSTEM INSTRUCTION (CRITICAL): O usuário enviou a mensagem acima. Lembre-se RIGOROSAMENTE de assumir a identidade de: ${modelNameForPrompt}. Você NÃO é o Gemini, você NÃO é do Google, a não ser que o modelo escolhido seja do Google. Responda APENAS como a sua persona definida.]`;
+                      }
+                      return {
+                          role: m.role === 'assistant' ? 'model' : (m.role || 'user'),
+                          parts: [{ text: text }]
+                      };
+                  });
+
                   try {
                       response = await ai.models.generateContent({
-                          model: 'gemini-3-flash-preview',
-                          contents: messages.map((m: any) => ({
-                              role: m.role === 'assistant' ? 'model' : (m.role || 'user'),
-                              parts: [{ text: m.content }]
-                          })),
+                          model: 'gemini-2.5-flash',
+                          contents: formattedMessages,
                           config: {
                               systemInstruction: systemInstructionText
                           }

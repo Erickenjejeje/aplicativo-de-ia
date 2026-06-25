@@ -122,6 +122,34 @@ const App = () => {
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [messageFeedback, setMessageFeedback] = useState({});
   const [logoRotation, setLogoRotation] = useState(0);
+  const [messagesSentToday, setMessagesSentToday] = useState(0);
+
+  useEffect(() => {
+    try {
+      const today = new Date().toDateString();
+      const storedData = localStorage.getItem('orion_daily_usage');
+      if (storedData) {
+        const { date, count } = JSON.parse(storedData);
+        if (date === today) {
+          setMessagesSentToday(count);
+        } else {
+          setMessagesSentToday(0);
+          localStorage.setItem('orion_daily_usage', JSON.stringify({ date: today, count: 0 }));
+        }
+      } else {
+        localStorage.setItem('orion_daily_usage', JSON.stringify({ date: today, count: 0 }));
+      }
+    } catch (e) {
+      console.error("Failed to parse daily usage");
+    }
+  }, []);
+
+  const incrementMessageCount = () => {
+    const today = new Date().toDateString();
+    const newCount = messagesSentToday + 1;
+    setMessagesSentToday(newCount);
+    localStorage.setItem('orion_daily_usage', JSON.stringify({ date: today, count: newCount }));
+  };
 
   useEffect(() => {
     localStorage.setItem('chatSessions', JSON.stringify(chatSessions));
@@ -243,9 +271,19 @@ const App = () => {
   const handleSend = async () => {
     if (!inputText.trim() || isLoading) return;
 
+    if (messagesSentToday >= 100) {
+      const limitMessage = { id: Date.now(), role: 'model', text: 'Você atingiu o limite diário de 100 mensagens. Volte amanhã para continuar conversando!' };
+      setMessages([...messages, { id: Date.now() - 1, role: 'user', text: inputText.trim() }, limitMessage]);
+      setInputText('');
+      if (textareaRef.current) textareaRef.current.style.height = '28px';
+      return;
+    }
+
     const userMessageText = inputText.trim();
     const newUserMessage = { id: Date.now(), role: 'user', text: userMessageText };
     
+    incrementMessageCount();
+
     const isInitialOnly = messages.length === 1 && messages[0].text === initialMessages[0].text;
     const currentMessages = isInitialOnly ? [] : messages;
     
@@ -912,7 +950,7 @@ const deleteSession = (e, id) => {
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
         className={`relative w-[85%] max-w-[320px] h-full flex flex-col shadow-2xl backdrop-blur-md border-r transition-colors duration-300 ${isDarkMode ? 'bg-black/10 border-white/10' : 'bg-white/20 border-white/60'}`}
       >
-        <div className="flex-1 overflow-y-auto w-full p-6 pb-24 custom-scrollbar flex flex-col gap-2 relative z-10">
+        <div className="flex-1 overflow-y-auto w-full p-6 pb-[140px] custom-scrollbar flex flex-col gap-2 relative z-10">
           <div className="flex justify-between items-center mb-3 px-2">
             <h3 className={`${isDarkMode ? 'text-white' : 'text-gray-900'} text-[14px] font-bold tracking-wider drop-shadow-sm`}>SEUS CHATS</h3>
             <button onClick={() => { setLogoRotation(prev => prev + 720); setCurrentView('chat'); }} className={`p-1.5 rounded-full transition-colors cursor-pointer ${isDarkMode ? 'text-white/50 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}>
@@ -946,6 +984,19 @@ const deleteSession = (e, id) => {
               </div>
             ))
           )}
+        </div>
+
+        <div className={`absolute z-20 bottom-[80px] left-0 w-full px-5 py-3 border-t ${isDarkMode ? 'border-white/5 bg-black/40 text-white' : 'border-gray-200 bg-white/60 text-gray-900'} backdrop-blur-md`}>
+          <div className="flex justify-between items-center mb-1.5 text-[12px] font-medium opacity-80">
+            <span>Mensagens Hoje</span>
+            <span>{messagesSentToday} / 100</span>
+          </div>
+          <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDarkMode ? 'bg-white/10' : 'bg-gray-300'}`}>
+            <div 
+              className={`h-full transition-all duration-500 ${messagesSentToday >= 100 ? 'bg-red-500' : (isDarkMode ? 'bg-white' : 'bg-gray-800')}`} 
+              style={{ width: `${Math.min((messagesSentToday / 100) * 100, 100)}%` }}
+            ></div>
+          </div>
         </div>
 
         <div className={`absolute z-20 bottom-0 left-0 w-full h-[80px] border-t flex items-center justify-center gap-3 px-4 ${isDarkMode ? 'border-white/5 bg-black/10' : 'border-gray-200 bg-white/20'} backdrop-blur-md`}>
@@ -1265,7 +1316,7 @@ const deleteSession = (e, id) => {
 
   return (
     <div className={`min-h-screen flex items-center justify-center font-sans transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-gray-200'}`}>
-      <div className={`relative w-full ${isExpanded ? 'max-w-[1000px]' : 'max-w-[428px]'} h-[100dvh] md:h-[850px] md:max-h-[90vh] md:rounded-[48px] overflow-hidden shadow-[0_0_50px_rgba(220,38,38,0.15)] md:border-[6px] transition-all duration-500 ${isDarkMode ? 'bg-[#050505] md:border-[#1a1a1a]' : 'bg-[#f8f9fa] md:border-gray-300'}`}>
+      <div className={`relative w-full ${isExpanded ? 'max-w-[1000px]' : 'md:max-w-[428px]'} h-[100dvh] md:h-[850px] md:max-h-[90vh] md:rounded-[48px] overflow-hidden shadow-[0_0_50px_rgba(220,38,38,0.15)] md:border-[6px] transition-all duration-500 ${isDarkMode ? 'bg-[#050505] md:border-[#1a1a1a]' : 'bg-[#f8f9fa] md:border-gray-300'}`}>
         
         <BackgroundEffects isDarkMode={isDarkMode} />
         
