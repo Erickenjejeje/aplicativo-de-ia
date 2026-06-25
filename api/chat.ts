@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     let lastErrorMessage = 'Failed to communicate with AI model';
     
     try {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = process.env.GEMINI_API_KEY || "AIzaSyCHRhaT9YGHwQoCNLhPYcEU5k4NrusM4fQ";
         
         if (!apiKey) {
             console.error('GEMINI_API_KEY environment variable is not set');
@@ -38,45 +38,131 @@ export default async function handler(req, res) {
                   ''
                 } ATENÇÃO SOBRE SUA IDENTIDADE: Não importa o modelo base por trás da API, você SEMPRE deve assumir que é o modelo especificado na frase anterior e foi criado pela empresa citada. Nunca mencione ser da OpenAI, Google ou Anthropic se você foi instruído a ser o Qwen, Grok, etc. Para solicitações e perguntas simples, responda de forma direta, natural e concisa. Apenas quando solicitado a criar textos, explicações longas ou tópicos complexos, você DEVE formatar suas respostas utilizando marcação Markdown (subtítulos \`##\`, listas com marcadores \`* \` e numerais, negrito para termos chave) com generosos espaçamentos em branco entre os parágrafos para facilitar a leitura. ESTRUTURA E FORMATAÇÃO: NÃO use linhas horizontais como "___" ou "---" para dividir o texto. Organize suas respostas de maneira limpa, profissional e bem estruturada, semelhante ao alto padrão de qualidade do ChatGPT, usando Markdown com inteligência para destacar a hierarquia da informação.`;
 
-        const targetModel = 'gemini-1.5-flash';
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: messages.map((m) => ({
-              role: m.role || 'user',
-              parts: [{ text: m.content }]
-            })),
-            systemInstruction: {
-              parts: [{ text: systemInstructionText }]
-            }
-          })
-        });
+        const openRouterKey = req.headers['x-openrouter-key'];
 
-        if (!response.ok) {
-           const errorData = await response.text();
-           console.error(`API Error (Status ${response.status}):`, errorData);
-           lastErrorStatus = response.status;
-           lastErrorMessage = `Erro na API (Status ${response.status}): ${errorData}`;
+        let rawData: any = null;
+        let responseOk = false;
+        let finalStatus = 500;
+        let finalErrorData = "";
+
+        if (openRouterKey) {
+            let realModel = 'google/gemini-2.5-pro';
+            const modelLower = (model || '').toLowerCase();
+            if (modelLower.includes('gpt')) realModel = 'openai/gpt-4o';
+            else if (modelLower.includes('claude')) realModel = 'anthropic/claude-3.5-sonnet';
+            else if (modelLower.includes('gemini-3')) realModel = 'google/gemini-2.5-flash';
+            else if (modelLower.includes('qwen')) realModel = 'qwen/qwen-2.5-72b-instruct';
+            else if (modelLower.includes('grok')) realModel = 'x-ai/grok-2';
+            else if (modelLower.includes('deepseek')) realModel = 'deepseek/deepseek-chat';
+            
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${openRouterKey}`,
+                    'HTTP-Referer': 'https://aistudio.google.com',
+                    'X-Title': 'AI Studio App',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: realModel,
+                    messages: [
+                        { role: 'system', content: systemInstructionText },
+                        ...messages.map((m: any) => ({
+                            role: m.role === 'model' ? 'assistant' : (m.role || 'user'),
+                            content: m.content
+                        }))
+                    ]
+                })
+            });
+
+            if (response.ok) {
+                const orData = await response.json();
+                data = {
+                    choices: [
+                        {
+                            message: {
+                                content: orData.choices?.[0]?.message?.content || ''
+                            }
+                        }
+                    ]
+                };
+                success = true;
+            } else {
+                const errorData = await response.text();
+                throw new Error(errorData);
+            }
         } else {
-           const rawData = await response.json();
-           data = {
-               choices: [
-                   {
-                       message: {
-                           content: rawData.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                       }
-                   }
-               ]
-           };
-           success = true;
+            const modelsToTry = ['gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
+            for (const targetModel of modelsToTry) {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    contents: messages.map((m: any) => ({
+                      role: m.role === 'assistant' ? 'model' : (m.role || 'user'),
+                      parts: [{ text: m.content }]
+                    })),
+                    systemInstruction: {
+                      parts: [{ text: systemInstructionText }]
+                    }
+                  })
+                });
+
+                if (response.ok) {
+                    rawData = await response.json();
+                    responseOk = true;
+                    break;
+                } else {
+                    const errorData = await response.text();
+                    // Se for 503, tenta o próximo modelo (fallback)
+                    if (response.status === 503 || errorData.includes('503') || errorData.includes('high demand') || errorData.includes('UNAVAILABLE')) {
+                        finalStatus = response.status;
+                        finalErrorData = errorData;
+                        continue; // tenta o próximo modelo
+                    } else {
+                        // Outros erros como 429 estouram e vai pro catch se eu jogar um erro, 
+                        // ou podemos settar o status e dar throw
+                        throw new Error(errorData);
+                    }
+                }
+            }
+
+            if (!responseOk && finalErrorData) {
+                throw new Error(finalErrorData); // lança o 503 final se todos falharem
+            }
+
+            data = {
+                choices: [
+                    {
+                        message: {
+                            content: rawData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                        }
+                    }
+                ]
+            };
+            success = true;
         }
-    } catch(fetchError) {
+      } catch(fetchError: any) {
          console.error("Fetch error during call:", fetchError);
-         lastErrorStatus = 500;
-         lastErrorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+         
+         const errorText = fetchError instanceof Error ? fetchError.message : String(fetchError);
+         if (errorText.includes('429') || errorText.includes('RESOURCE_EXHAUSTED') || errorText.includes('Quota exceeded')) {
+            data = {
+                choices: [
+                    {
+                        message: {
+                            content: "⚠️ **Limite da API Atingido:** A cota gratuita (20 requisições) para o modelo **Gemini 3 Flash Preview** foi excedida na sua chave de API. Por favor, verifique seu faturamento no Google AI Studio (https://ai.google.dev/gemini-api/docs/rate-limits) ou aguarde o tempo de recarga para continuar."
+                        }
+                    }
+                ]
+            };
+            success = true;
+         } else {
+            lastErrorStatus = 500;
+            lastErrorMessage = errorText;
+         }
     }
 
     if (success && data) {

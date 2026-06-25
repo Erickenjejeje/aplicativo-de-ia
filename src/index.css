@@ -2,7 +2,8 @@
 
 @layer components {
   .markdown-body {
-    @apply leading-[1.7] text-[16px];
+    @apply leading-[1.7] text-[16px] break-words;
+    word-break: break-word;
   }
   .markdown-body p {
     @apply mb-5;
