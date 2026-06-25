@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "AI Assistant",
+  "description": "Multi-model AI assistant supporting multiple LLMs like GPT-5.5, Claude Opus, and Gemini",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
