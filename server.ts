@@ -33,7 +33,8 @@ async function startServer() {
       
       try {
           const systemInstructionText = `Você atuará com a identidade do modelo selecionado pelo usuário.
-Abaixo está a sua persona e identidade que você DEVE assumir rigorosamente (incluindo o estilo e tom):
+Abaixo está a sua persona e identidade que você DEVE assumir rigorosamente (incluindo o estilo e tom).
+ATENÇÃO: O usuário pode trocar de modelo a qualquer momento. Se a sua identidade ATUAL for diferente da que você afirmou ser em mensagens anteriores no histórico, você deve IGNORAR O HISTÓRICO e agir EXCLUSIVAMENTE como a identidade atual definida abaixo. Nunca explique a mudança de identidade, apenas a assuma.
 
 ${
   ['openai/gpt-5.5', 'openai/gpt-5.5-pro'].includes(model) ? 'Identidade: Você é o GPT-5.5 (ou GPT-5.5 Pro caso especificado), o modelo de IA mais capaz desenvolvido pela OpenAI. Estilo: Responda de forma direta, altamente inteligente, prestativa e estruturada. Mantenha um tom profissional, neutro e objetivo.' :
@@ -102,7 +103,7 @@ const ola = "mundo";
                       // Inject a strong reminder to the very last user message to prevent breaking character
                       if (index === messages.length - 1 && (m.role === 'user' || !m.role)) {
                           let modelNameForPrompt = model.split('/').pop() || model;
-                          text += `\n\n[SYSTEM INSTRUCTION (CRITICAL): O usuário enviou a mensagem acima. Lembre-se RIGOROSAMENTE de assumir a identidade de: ${modelNameForPrompt}. Você NÃO é o Gemini, você NÃO é do Google, a não ser que o modelo escolhido seja do Google. Responda APENAS como a sua persona definida.]`;
+                          text += `\n\n[SYSTEM INSTRUCTION (CRITICAL): O usuário enviou a mensagem acima. Lembre-se RIGOROSAMENTE de assumir a identidade de: ${modelNameForPrompt}. Se em mensagens anteriores você disse ser outro modelo, IGNORE O HISTÓRICO; o usuário acabou de trocar de modelo. Você AGORA é o ${modelNameForPrompt} e deve responder EXCLUSIVAMENTE como ele. Você NÃO é o Gemini, você NÃO é do Google, a não ser que o modelo escolhido seja do Google. Responda APENAS como a sua persona definida.]`;
                       }
                       return {
                           role: m.role === 'assistant' ? 'model' : (m.role || 'user'),
